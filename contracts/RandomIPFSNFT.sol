@@ -2,16 +2,16 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "hardhat/console.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "hardhat/console.sol";
 
 error RandomIPFSNFT__RangeOutOfBounds();
 error RandomIPFSNFT__InsufficientMintFee();
 error RandomIPFSNFT__WithdrawFailed();
+error RandomIPFSNFT__AlreadyInitialized();
 
 contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
   // Types of Dogs
@@ -33,10 +33,12 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
   mapping(uint256 => address) private s_requestIdToSender;
 
   // NFT Variables
+  uint256 private i_mintFee;
   uint256 public s_tokenCounter;
+  mapping(uint256 => Breed) private s_tokenIdToBreed;
   uint256 internal constant MAX_CHANCE_VALUE = 100;
   string[] internal i_dogTokenURIs;
-  uint256 internal i_mintFee;
+  bool private s_initialized;
 
   // events
   event NFTRequested(uint256 indexed requestId, address requester);
@@ -47,19 +49,17 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
   constructor(
     address vrfCoordinatorV2,
     uint64 subscriptionId,
-    bytes32 gasLane,
-    uint32 callbackLimit,
-    // the reason why its ERC721 is because underlying contract is ERC721
-    string[3] memory dogTokenURIs,
-    uint256 mintFee
-  ) VRFConsumerBaseV2(vrfCoordinatorV2) ERC721("RandomIPFSNFT", "RIN") {
+    bytes32 gasLane, // keyHash
+    uint256 mintFee,
+    uint32 callbackGasLimit,
+    string[3] memory dogTokenUris
+  ) VRFConsumerBaseV2(vrfCoordinatorV2) ERC721("Random IPFS NFT", "RIN") {
     i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
-    i_callbackGasLimit = callbackLimit;
     i_gasLane = gasLane;
     i_subscriptionId = subscriptionId;
-    s_tokenCounter = 0;
-    i_dogTokenURIs = dogTokenURIs;
     i_mintFee = mintFee;
+    i_callbackGasLimit = callbackGasLimit;
+    _initializeContract(dogTokenUris);
   }
 
   function requestNFT() public payable returns (uint256 requestId) {
@@ -77,24 +77,25 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
     emit NFTRequested(requestId, msg.sender);
   }
 
-  function fullfillRandomWords(
+  function _initializeContract(string[3] memory dogTokenUris) private {
+    if (s_initialized) {
+      revert RandomIPFSNFT__AlreadyInitialized();
+    }
+    i_dogTokenURIs = dogTokenUris;
+    s_initialized = true;
+  }
+
+  function fulfillRandomWords(
     uint256 requestId,
     uint256[] memory randomWords
-  ) internal {
+  ) internal override {
     address dogOwner = s_requestIdToSender[requestId];
-    uint256 newTokenId = s_tokenCounter;
-    // We will now need to now get the breed of dog
-    uint256 moddedRNG = randomWords[0] % MAX_CHANCE_VALUE;
-    // 0-99 would be the result from above
-    // 7 -> Shiba Inu
-    // 30 -> Pug
-    // 88 -> ST_BERNARD
-    // 45 -> ST_BERNARD
-
-    Breed dogBreed = getBreedFromModdedRng(moddedRNG);
-    // safeMint is called from ERC721
-    _safeMint(dogOwner, newTokenId);
-    _setTokenURI(newTokenId, i_dogTokenURIs[uint256(dogBreed)]);
+    uint256 newItemId = s_tokenCounter;
+    s_tokenCounter = s_tokenCounter + 1;
+    uint256 moddedRng = randomWords[0] % MAX_CHANCE_VALUE;
+    Breed dogBreed = getBreedFromModdedRng(moddedRng);
+    _safeMint(dogOwner, newItemId);
+    _setTokenURI(newItemId, i_dogTokenURIs[uint256(dogBreed)]);
     emit NFTMinted(dogBreed, dogOwner);
   }
 
@@ -135,7 +136,7 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
     return i_dogTokenURIs[index];
   }
 
-  function getTokenCounter() public returns (uint256) {
+  function getTokenCounter() public view returns (uint256) {
     return s_tokenCounter;
   }
 }

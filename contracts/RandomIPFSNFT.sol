@@ -38,6 +38,10 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
   string[] internal i_dogTokenURIs;
   uint256 internal i_mintFee;
 
+  // events
+  event NFTRequested(uint256 indexed requestId, address requester);
+  event NFTMinted(Breed breed, address mintTo);
+
   // we will mint NFT via the use of Chainlink VRF to get us a random number
   // this random number will allow us to get a random NFT [Shiba, Pug, Labrador]
   constructor(
@@ -70,6 +74,7 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
       NUM_WORDS
     );
     s_requestIdToSender[requestId] = msg.sender;
+    emit NFTRequested(requestId, msg.sender);
   }
 
   function fullfillRandomWords(
@@ -90,15 +95,16 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
     // safeMint is called from ERC721
     _safeMint(dogOwner, newTokenId);
     _setTokenURI(newTokenId, i_dogTokenURIs[uint256(dogBreed)]);
+    emit NFTMinted(dogBreed, dogOwner);
   }
 
   function withdraw() public payable onlyOwner {
     uint256 amount = address(this).balance;
     (bool success, ) = payable(msg.sender).call{value: amount}("");
     if (!success) {
-        revert RandomIPFSNFT__WithdrawFailed();
+      revert RandomIPFSNFT__WithdrawFailed();
     }
-    }
+  }
 
   function getBreedFromModdedRng(
     uint256 moddedRNG
@@ -119,5 +125,17 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
   function getChanceArray() public pure returns (uint256[3] memory) {
     // this is the chance of the NFT, from 10% of chance for the rarest to 60% for the most common
     return [10, 30, MAX_CHANCE_VALUE];
+  }
+
+  function getMintFee() public view returns (uint256) {
+    return i_mintFee;
+  }
+
+  function getDogTokenURI(uint256 index) public view returns (string memory) {
+    return i_dogTokenURIs[index];
+  }
+
+  function getTokenCounter() public returns (uint256) {
+    return s_tokenCounter;
   }
 }

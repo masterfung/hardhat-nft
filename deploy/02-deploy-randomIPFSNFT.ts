@@ -26,7 +26,7 @@ const metadataTemplate = {
 
 const deployRandomIpfsNft: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts, network, ethers } = hre
-    const { deploy, log } = deployments
+    const { deploy } = deployments
     const { deployer } = await getNamedAccounts()
     const chainId = network.config.chainId!
     let vrfCoordinatorV2Address, subscriptionId
@@ -88,7 +88,7 @@ async function handleTokenUris() {
         const metadataUploadResponse = await storeTokenUriMetadata(tokenUriMetadata)
         tokenUris.push(`ipfs://${metadataUploadResponse!.IpfsHash}`)
     }
-    console.log("Token URIs uploaded! They are:")
+    console.log("Token URIs have been uploaded! They are:")
     console.log(tokenUris)
     return tokenUris
 }

@@ -13,8 +13,11 @@ export async function storeImages(imagesFilePath: string) {
     let responses = []
     for (const fileIndex in files) {
         const readableStreamForFile = fs.createReadStream(`${fullImagesPath}/${files[fileIndex]}`)
+
         try {
-            const response = await pinata.pinFileToIPFS(readableStreamForFile)
+            const response = await pinata.pinFileToIPFS(readableStreamForFile, {
+                pinataMetadata: { name: files[fileIndex] },
+            })
             responses.push(response)
         } catch (error) {
             console.log(error)
@@ -26,7 +29,7 @@ export async function storeImages(imagesFilePath: string) {
 export async function storeTokenUriMetadata(metadata) {
     const options = {
         pinataMetadata: {
-            name: 'TEST',
+            name: metadata.name,
         },
     }
     try {

@@ -3,6 +3,7 @@ import verify from "../utils/verify"
 import { DeployFunction } from "hardhat-deploy/types"
 import { HardhatRuntimeEnvironment } from "hardhat/types"
 import { storeImages, storeTokenUriMetadata } from "../utils/uploadToPinata"
+import { VRFConsumerBaseV2 } from "../typechain-types"
 
 const FUND_AMOUNT = "1000000000000000000000"
 const imagesLocation = "./images/randomNft/"
@@ -35,15 +36,20 @@ const deployRandomIpfsNft: DeployFunction = async function (hre: HardhatRuntimeE
         tokenUris = await handleTokenUris()
     }
 
-    if (chainId == 31337) {
+    let vrfCoordinatorV2Mock
+
+    if (developmentChains.includes(network.name)) {
         // create VRFV2 Subscription
-        const vrfCoordinatorV2Mock = await ethers.getContractAt("VRFCoordinatorV2Mock", deployer)
+        const vrfCoordinatorV2MockDeployment = await deployments.get("VRFCoordinatorV2Mock") // interesting!!!
+        vrfCoordinatorV2Mock = await ethers.getContractAt(
+            "VRFCoordinatorV2Mock",
+            vrfCoordinatorV2MockDeployment.address
+        )
         vrfCoordinatorV2Address = vrfCoordinatorV2Mock.address
         const transactionResponse = await vrfCoordinatorV2Mock.createSubscription()
-        const transactionReceipt = await transactionResponse.wait()
-        subscriptionId = transactionReceipt.events[0].args.subId
-        // Fund the subscription
-        // Our mock makes it so we don't actually have to worry about sending fund
+        const transactionReceipt = await transactionResponse.wait(1)
+        subscriptionId = transactionReceipt.events && transactionReceipt.events[0]?.args?.subId // need to learn more about subscription ID
+
         await vrfCoordinatorV2Mock.fundSubscription(subscriptionId, FUND_AMOUNT)
     } else {
         vrfCoordinatorV2Address = networkConfig[chainId].vrfCoordinatorV2
@@ -59,14 +65,17 @@ const deployRandomIpfsNft: DeployFunction = async function (hre: HardhatRuntimeE
         networkConfig[chainId]["callbackGasLimit"],
         tokenUris,
     ]
-    const randomIpfsNft = await deploy("RandomIpfsNft", {
+    const randomIpfsNft = await deploy("RandomIPFSNFT", {
         from: deployer,
         args: args,
         log: true,
         waitConfirmations: 1,
     })
 
-    // Verify the deployment
+    // adding this resolved the InvalidConsumer error on test since the consumer was missing
+    await vrfCoordinatorV2Mock?.addConsumer(subscriptionId, randomIpfsNft.address)
+
+    // Verify the deployment to Etherscan
     if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
         console.log("Verifying...")
         await verify(randomIpfsNft.address, args)

@@ -136,7 +136,15 @@ contract RandomIPFSNFT is VRFConsumerBaseV2, ERC721URIStorage, Ownable {
     return i_dogTokenURIs[index];
   }
 
+  function getDogTokenURIs() public view returns (string[] memory) {
+    return i_dogTokenURIs;
+  }
+
   function getTokenCounter() public view returns (uint256) {
     return s_tokenCounter;
+  }
+
+  function getInitialized() public view returns(bool) {
+    return s_initialized;
   }
 }
